@@ -6,6 +6,7 @@ mod commands {
 }
 mod process {
     pub mod manager;
+    pub mod resolver;
 }
 mod errors;
 
@@ -32,6 +33,7 @@ pub fn run() {
         })
         .invoke_handler(tauri::generate_handler![
             commands::dependencies::check_system_dependencies,
+            commands::dependencies::validate_workspace,
             commands::engine::probe_video,
             commands::engine::start_render,
             commands::engine::cancel_render,

@@ -7,15 +7,36 @@ use tauri::{AppHandle, Emitter, State};
 
 use crate::errors::{AppError, AppResult};
 use crate::process::manager::ProcessManager;
+use crate::process::resolver::resolve_tool;
 
 const CREATE_NO_WINDOW: u32 = 0x08000000;
 
 #[tauri::command]
 pub fn probe_video(input_path: String) -> AppResult<String> {
-    let mut cmd = Command::new("python");
+    let python_tool = resolve_tool("python", None);
+    let ffmpeg_tool = resolve_tool("ffmpeg", None);
+    let ffprobe_tool = resolve_tool("ffprobe", None);
+
+    let python_exe = if python_tool.available {
+        &python_tool.executable_path
+    } else {
+        "python"
+    };
+
+    let mut cmd = Command::new(python_exe);
     cmd.args(&["-m", "trecho_engine.cli", "probe", "--input", &input_path]);
+    
+    // Injeta os caminhos resolvidos para o motor Python
+    if ffmpeg_tool.available {
+        cmd.env("TRECHO_FFMPEG_PATH", &ffmpeg_tool.executable_path);
+    }
+    if ffprobe_tool.available {
+        cmd.env("TRECHO_FFPROBE_PATH", &ffprobe_tool.executable_path);
+    }
+
     cmd.stdout(Stdio::piped());
     cmd.stderr(Stdio::piped());
+    
     #[cfg(target_os = "windows")]
     cmd.creation_flags(CREATE_NO_WINDOW);
 
@@ -66,13 +87,34 @@ pub fn start_render(
     }
 
     let manager_clone = Arc::clone(&manager);
+    let app_handle_clone = app_handle.clone();
 
     // Spawna uma tarefa assíncrona do Tauri para ler o stdout
     tauri::async_runtime::spawn(async move {
-        let mut cmd = Command::new("python");
+        let python_tool = resolve_tool("python", Some(&app_handle_clone));
+        let ffmpeg_tool = resolve_tool("ffmpeg", Some(&app_handle_clone));
+        let ffprobe_tool = resolve_tool("ffprobe", Some(&app_handle_clone));
+
+        let python_exe = if python_tool.available {
+            &python_tool.executable_path
+        } else {
+            "python"
+        };
+
+        let mut cmd = Command::new(python_exe);
         cmd.args(&["-m", "trecho_engine.cli", "render", "--plan", &plan_json, "--job-id", &job_id]);
+        
+        // Injeta os caminhos resolvidos para o motor Python
+        if ffmpeg_tool.available {
+            cmd.env("TRECHO_FFMPEG_PATH", &ffmpeg_tool.executable_path);
+        }
+        if ffprobe_tool.available {
+            cmd.env("TRECHO_FFPROBE_PATH", &ffprobe_tool.executable_path);
+        }
+
         cmd.stdout(Stdio::piped());
         cmd.stderr(Stdio::piped());
+        
         #[cfg(target_os = "windows")]
         cmd.creation_flags(CREATE_NO_WINDOW);
 

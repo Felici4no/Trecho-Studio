@@ -12,10 +12,17 @@ from trecho_engine.errors import (
 )
 
 def find_ffprobe() -> str:
-    """Verifica se o ffprobe está no PATH ou em algum diretório comum."""
+    """Verifica se o ffprobe está configurado ou no PATH do sistema."""
+    # 1. Prioriza caminho configurado explicitamente no ambiente (passado pelo Rust)
+    env_path = os.environ.get("TRECHO_FFPROBE_PATH")
+    if env_path and os.path.exists(env_path):
+        return env_path
+
+    # 2. PATH do sistema
     path = shutil.which("ffprobe")
     if path:
         return path
+
     raise TrechoEngineError(
         code=FFPROBE_NOT_FOUND,
         message="O ffprobe não foi encontrado no PATH do sistema.",

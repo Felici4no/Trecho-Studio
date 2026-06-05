@@ -9,6 +9,11 @@ import { DiagnosticPage } from "./pages/DiagnosticPage";
 
 type Page = "home" | "new-project" | "editor";
 
+interface WorkspaceValidationResult {
+  success: boolean;
+  errorMessage: string | null;
+}
+
 function App() {
   const [currentPage, setCurrentPage] = useState<Page>("home");
   const { workspacePath, setWorkspacePath, loadWorkspace } = useProjectStore();
@@ -48,17 +53,25 @@ function App() {
       });
 
       if (selected && typeof selected === "string") {
-        localStorage.setItem("trecho_workspace_path", selected);
-        setWorkspacePath(selected);
-        await loadWorkspace(selected);
-        await checkDependencies(selected);
+        // Valida a gravação do workspace no Rust antes de aceitar
+        const validation = await invoke<WorkspaceValidationResult>("validate_workspace", { path: selected });
+        
+        if (validation.success) {
+          localStorage.setItem("trecho_workspace_path", selected);
+          setWorkspacePath(selected);
+          await loadWorkspace(selected);
+          await checkDependencies(selected);
+        } else {
+          alert(`Pasta selecionada inválida:\n${validation.errorMessage || "Erro desconhecido ao validar a pasta."}`);
+        }
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error("Erro ao selecionar workspace:", err);
+      alert(`Erro ao selecionar a pasta: ${err.message || err}`);
     }
   };
 
-  // Se estiver carregando, mostra tela simples de carregamento
+  // Se estiver carregando dependências, mostra tela de carregamento
   if (isChecking) {
     return (
       <div style={{
@@ -77,9 +90,13 @@ function App() {
     );
   }
 
-  // Se as dependências não estiverem OK, força a tela de diagnóstico
-  const hasValidWorkspace = !!workspacePath;
-  const isSystemReady = depStatus?.allOk && hasValidWorkspace;
+  // A aplicação está pronta apenas se todas as dependências estão OK e o workspace está validado
+  const isSystemReady = 
+    depStatus?.python?.available && 
+    depStatus?.ffmpeg?.available && 
+    depStatus?.ffprobe?.available && 
+    !!workspacePath && 
+    depStatus?.workspaceOk;
 
   if (!isSystemReady) {
     return (

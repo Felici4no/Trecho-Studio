@@ -1,3 +1,4 @@
+import os
 import shutil
 from typing import List
 from trecho_engine.render_plan import RenderPlan
@@ -6,10 +7,17 @@ from trecho_engine.errors import FFMPEG_NOT_FOUND, TrechoEngineError
 class FFmpegCommandBuilder:
     @staticmethod
     def find_ffmpeg() -> str:
-        """Verifica se o ffmpeg está no PATH ou em algum diretório comum."""
+        """Verifica se o ffmpeg está configurado ou no PATH do sistema."""
+        # 1. Prioriza caminho configurado explicitamente no ambiente (passado pelo Rust)
+        env_path = os.environ.get("TRECHO_FFMPEG_PATH")
+        if env_path and os.path.exists(env_path):
+            return env_path
+
+        # 2. PATH do sistema
         path = shutil.which("ffmpeg")
         if path:
             return path
+
         raise TrechoEngineError(
             code=FFMPEG_NOT_FOUND,
             message="O ffmpeg não foi encontrado no PATH do sistema.",
